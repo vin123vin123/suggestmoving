@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bouncing Balls Simulator & GIF Recorder</title>
+    <!-- Include CCapture library asset for handling client-side GIF compiles -->
+    <script src="https://jsdelivr.net"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #1e1e24;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        #canvas-container {
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: #121214;
+        }
+        .controls {
+            margin-top: 25px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        select, button {
+            padding: 10px 15px;
+            border-radius: 5px;
+            border: none;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        select { background-color: #343a40; color: white; cursor: pointer; }
+        button { background-color: #228be6; color: white; cursor: pointer; }
+        button:disabled { background-color: #868e96; cursor: not-allowed; }
+        #status { margin-top: 15px; color: #ff922b; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h1>Bouncing Balls Simulator</h1>
+    <div id="canvas-container">
+        <canvas id="ballCanvas" width="800" height="500"></canvas>
+    </div>
+
+    <div class="controls">
+        <label for="duration">GIF Length: </label>
+        <select id="duration">
+            <option value="5">5 Seconds</option>
+            <option value="10">10 Seconds</option>
+            <option value="15">15 Seconds</option>
+        </select>
+        <button id="recordBtn">Record & Download GIF</button>
+    </div>
+    <div id="status"></div>
+
+    <script>
+        const canvas = document.getElementById('ballCanvas');
+        const ctx = canvas.getContext('2d');
+        const recordBtn = document.getElementById('recordBtn');
+        const durationSelect = document.getElementById('duration');
+        const statusDiv = document.getElementById('status');
+
+        let localBalls = [];
+        let isRecording = false;
+        let capturer = null;
+        let recordedFrames = 0;
+        const fps = 30;
+
+        function updateSimulation() {
+            fetch('/update')
+                .then(response => response.json())
+                .then(data => {
+                    localBalls = data;
+                    render();
+                    
+                    if (isRecording) {
+                        capturer.capture(canvas);
+                        recordedFrames++;
+                        let totalFrames = parseInt(durationSelect.value) * fps;
+                        statusDiv.innerText = `Recording... ${Math.round((recordedFrames / totalFrames) * 100)}%`;
+                        if (recordedFrames >= totalFrames) stopRecording();
+                    }
+                    setTimeout(updateSimulation, 1000 / fps);
+                });
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            localBalls.forEach(ball => {
+                ctx.beginPath();
+                ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+                ctx.fillStyle = ball.color;
+                ctx.fill();
+                ctx.closePath();
+            });
+        }
+
+        function startRecording() {
+            isRecording = true;
+            recordedFrames = 0;
+            capturer = new CCapture({ format: 'gif', workersPath: 'https://jsdelivr.net', framerate: fps });
+            recordBtn.disabled = true;
+            durationSelect.disabled = true;
+            capturer.start();
+        }
+
+        function stopRecording() {
+            isRecording = false;
+            statusDiv.innerText = "Compiling GIF... Please wait...";
+            capturer.stop();
+            capturer.save();
+            setTimeout(() => {
+                recordBtn.disabled = false;
+                durationSelect.disabled = false;
+                statusDiv.innerText = "GIF Downloaded!";
+            }, 1000);
+        }
+
+        recordBtn.addEventListener('click', startRecording);
+        updateSimulation();
+    </script>
+</body>
+</html>
